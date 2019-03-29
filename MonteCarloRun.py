@@ -13,7 +13,7 @@ import statistics
 
 
 class MonteCarloRunSim():
-    asset_values_orig = []
+    asset_type_values_orig = []
     income_before_tax = []
     income_after_tax = []
     income_tax = []
@@ -24,7 +24,10 @@ class MonteCarloRunSim():
     roi_list = []
     roi_value_list = []
     inflation_list = []
-    end_asset_list = []
+    new_assets_list = []
+    investment_tax_list = []
+    withdrawal_tax = []
+    end_asset_type_list = []
     start_asset_list = []
     start_asset_type_list = []
     cashflow = []
@@ -32,22 +35,23 @@ class MonteCarloRunSim():
     portfolio_value = []
     income_pretax = []
     income_aftertax = []
-    investment_return_tax = []
+    investment_tax = []
     withdrawals_after_tax = []
     assets_value_end = []
-    asset_values = []
+    asset_type_values = []
+    more_detail = True
 
     start_year = 0
     start_time = ''
     end_year = 0
     runs = 0
-    sd = 0
-    roi = 0
-    tax_rate = 0
-    inv_tax_rate = 0
-    inflation_rate = 0
-    inflation_SD = 0
-    assets_value_init = 0
+    sd = 0.0
+    roi = 0.0
+    tax_rate = 0.0
+    inv_tax_rate = 0.0
+    inflation_rate = 0.0
+    inflation_SD = 0.0
+    assets_value_init = 0.0
     asset_types = []
     tax_rates = []
     investment_tax_rates = []
@@ -57,10 +61,11 @@ class MonteCarloRunSim():
     def __init__(self):
         pass
 
-    def run_simulation(self, dbname_in, currency_symbol):
+    def run_simulation(self, dbname_in, currency_symbol, more_details):
+        self.more_detail = more_details
 
-        print(self.asset_values_orig)
-        self.asset_values_orig.append(0)
+        print(self.asset_type_values_orig)
+        self.asset_type_values_orig.append(0.0)
         self.dbname = dbname_in
         self.start_time = time.time()
         self.get_assumptions()
@@ -82,27 +87,33 @@ class MonteCarloRunSim():
         self.withdrawals.clear()
         self.start_asset_list.clear()
         self.start_asset_type_list.clear()
-        self.end_asset_list.clear()
+        self.end_asset_type_list.clear()
         self.roi_list.clear()
         self.roi_value_list.clear()
         self.inflation_list.clear()
+        self.new_assets_list.clear()
+        self.investment_tax_list.clear()
+        self.withdrawal_tax.clear()
 
         while i <= (self.end_year - self.start_year):
 
-            self.income_before_tax.append(0)
-            self.income_after_tax.append(0)
-            self.income_tax.append(0)
-            self.spending.append(0)
-            self.withdrawals.append(0)
+            self.income_before_tax.append(0.0)
+            self.income_after_tax.append(0.0)
+            self.income_tax.append(0.0)
+            self.spending.append(0.0)
+            self.withdrawals.append(0.0)
             self.start_asset_list.append([])
             self.start_asset_type_list.append([])
             for a in self.asset_types:
                 self.start_asset_type_list[i].append([])
                 self.new_asset_type_list[i].append([])
-            self.end_asset_list.append([])
+            self.end_asset_type_list.append([])
             self.roi_list.append([])
             self.roi_value_list.append([])
             self.inflation_list.append([])
+            self.new_assets_list.append([])
+            self.investment_tax_list.append([])
+            self.withdrawal_tax.append([])
             i = i + 1
         r = 0
         zero_list = []
@@ -149,7 +160,7 @@ class MonteCarloRunSim():
         cursor = connection.cursor()
 
         print('xxxx', self.inv_tax_rate)
-        print('yyyy', self.asset_values_orig)
+        print('yyyy', self.asset_type_values_orig)
 
         sql = "select distinct type,ifnull(sum(amount),0)," + str(
             self.tax_rate) + ",0, 2 as ord from assets  where start_year <= " + str(
@@ -160,8 +171,8 @@ class MonteCarloRunSim():
         print(sql)
         cursor.execute(sql)
         rows = cursor.fetchall()
-        self.assets_value_init = 0
-        self.asset_values_orig.clear()
+        self.assets_value_init = 0.0
+        self.asset_type_values_orig.clear()
         self.asset_types.clear()
         self.tax_rates.clear()
         self.investment_tax_rates.clear()
@@ -172,16 +183,16 @@ class MonteCarloRunSim():
                     self.asset_types.append(col)
                     print(col)
                 if ix == 1:
-                    self.asset_values_orig.append(float(col))
-                    self.assets_value_init = float(self.assets_value_init + col)
+                    self.asset_type_values_orig.append(col)
+                    self.assets_value_init = self.assets_value_init + col
                     print("assets_value=", col)
                 if ix == 2:
-                    self.tax_rates.append(float(col))
+                    self.tax_rates.append(float(col) / 100)
 
                     print("tax rate=", col)
 
                 if ix == 3:
-                    self.investment_tax_rates.append(float(col))
+                    self.investment_tax_rates.append(float(col) / 100)
 
                     print("inv tax rate=", col)
                 ix = ix + 1
@@ -189,9 +200,9 @@ class MonteCarloRunSim():
         i = 0
         while i <= (self.end_year - self.start_year):
             self.new_asset_type_list.append([])
-            self.new_asset_type_list[i].append(0)
-            self.new_asset_type_list[i].append(0)
-            self.new_asset_type_list[i].append(0)
+            self.new_asset_type_list[i].append(0.0)
+            self.new_asset_type_list[i].append(0.0)
+            self.new_asset_type_list[i].append(0.0)
             i = i + 1
 
         sql = "select type,start_year ,sum(amount) from assets where start_year > " + str(
@@ -202,13 +213,13 @@ class MonteCarloRunSim():
         for row in rows:
             print(row)
             if row[0] == 'Tax Deferred':
-                self.new_asset_type_list[int(row[1]) - self.start_year][1] = float(row[2])
+                self.new_asset_type_list[int(row[1]) - self.start_year][1] = row[2]
             if row[0] == 'Taxable':
-                self.new_asset_type_list[int(row[1]) - self.start_year][0] = float(row[2])
+                self.new_asset_type_list[int(row[1]) - self.start_year][0] = row[2]
             if row[0] == 'Tax Free':
-                self.new_asset_type_list[int(row[1]) - self.start_year][2] = float(row[2])
+                self.new_asset_type_list[int(row[1]) - self.start_year][2] = row[2]
 
-        print("assets_value=", str(self.asset_values_orig))
+        print("assets_value=", str(self.asset_type_values_orig))
 
         print('avi', str(self.assets_value_init) + ',' + str(self.tax_rates) + "," + str(self.investment_tax_rates))
 
@@ -241,10 +252,10 @@ class MonteCarloRunSim():
             print(sql)
             cursor.execute(sql)
             rows = cursor.fetchall()
-            income = 0
-            income_before_tax = 0
-            income_after_tax = 0
-            tax = 0
+            income = 0.0
+            income_before_tax = 0.0
+            income_after_tax = 0.0
+            tax = 0.0
 
             for row in rows:
                 print('income', row)
@@ -255,12 +266,11 @@ class MonteCarloRunSim():
                 if change != 0:
                     income_in = self.adjust(income_in, change, year)
 
-                tax_row = float(income_in * (tax_rate_in / 100))
-                income_after_tax_row = float(income_in - tax_row)
-                income_before_tax = float(income_before_tax + income_in)
-                income_after_tax = float(income_after_tax + income_after_tax_row)
-                tax = float(tax + tax_row)
-
+                tax_row = income_in * (tax_rate_in / 100)
+                income_after_tax_row = income_in - tax_row
+                income_before_tax = income_before_tax + income_in
+                income_after_tax = income_after_tax + income_after_tax_row
+                tax = tax + tax_row
 
             sql = "select ifnull(sum(amount),0) from spending where fromyear <= " + str(year) + " and toyear >= " + str(
                 year)
@@ -274,13 +284,13 @@ class MonteCarloRunSim():
                 change = row[0]
                 if change != 0:
                     spending = self.adjust(Spending_in, change, year)
-            self.cashflow.append(float(income_after_tax - spending))
+            self.cashflow.append(income_after_tax - spending)
 
-            self.spending[year - self.start_year] = float(spending)
-            self.income_before_tax[year - self.start_year] = float(income_before_tax)
-            self.income_after_tax[year - self.start_year] = float(income_before_tax - tax)
-            self.income_tax[year - self.start_year] = float(tax)
-            self.withdrawals[year - self.start_year] = float(income_after_tax - spending)
+            self.spending[year - self.start_year] = spending
+            self.income_before_tax[year - self.start_year] = income_before_tax
+            self.income_after_tax[year - self.start_year] = income_before_tax - tax
+            self.income_tax[year - self.start_year] = tax
+            self.withdrawals[year - self.start_year] = income_after_tax - spending
 
             year = year + 1
 
@@ -314,37 +324,26 @@ class MonteCarloRunSim():
             Inflationarray = self.get_inflation_random(self.end_year - self.start_year + 1, self.inflation_rate,
                                                        self.inflation_SD)
 
-            assetCnt = 0
+            asset_index = 0
             year = 0
-            assets_value = self.assets_value_init
-            self.asset_values.clear()
-
-            for l in self.asset_values_orig:
-                self.asset_values.append(l)
+            self.asset_type_values.clear()
+            for l in self.asset_type_values_orig:
+                self.asset_type_values.append(l)
 
             failedrun = "n"
-            assetCnt = 0;
+            asset_index = 0;
             while (year <= (self.end_year - self.start_year)):
                 if failedrun == 'n':
                     """
                     If cashflow is positive just add it to tax-free asset value
                     """
 
-
-
-                    self.start_asset_list[year].append(assets_value)
-
                     ix2 = 0
-                    for av in self.asset_values:
-                        self.start_asset_type_list[year][ix2].append(self.asset_values[ix2])
-
-                        ix2 = ix2 + 1
-
+                    withdrawal_tax = 0
 
                     if self.cashflow[year] >= 0:
-                        assets_value = assets_value + self.cashflow[year]
-                        assetCnt = 0
-                        self.asset_values[assetCnt] = self.asset_values[assetCnt] + self.cashflow[year]
+                        asset_index = 0
+                        self.asset_type_values[asset_index] = self.asset_type_values[asset_index] + self.cashflow[year]
 
 
                     else:
@@ -353,50 +352,65 @@ class MonteCarloRunSim():
                         """
                         Loop thru assets to fund the required cashflow
                         """
+
                         while amount_to_cover > 0 and failedrun != 'y':
-                            amount_to_cover_after_tax = (amount_to_cover / (1 - (self.tax_rates[assetCnt]) / 100))
-                            if amount_to_cover_after_tax <= self.asset_values[assetCnt]:
-                                self.asset_values[assetCnt] = self.asset_values[assetCnt] - amount_to_cover_after_tax
-                                assets_value = assets_value - amount_to_cover_after_tax
+                            amount_to_cover_after_tax = (amount_to_cover / (1 - (self.tax_rates[asset_index])))
+                            if amount_to_cover_after_tax <= self.asset_type_values[asset_index]:
+                                self.asset_type_values[asset_index] = self.asset_type_values[
+                                                                          asset_index] - amount_to_cover_after_tax
+                                if self.more_detail == True:
+                                    withdrawal_tax = withdrawal_tax + amount_to_cover_after_tax - amount_to_cover
                                 amount_to_cover = 0
                             else:
-                                amountCovered = self.asset_values[assetCnt] * (1 - ((self.tax_rates[assetCnt]) / 100))
-                                amount_to_cover = amount_to_cover - amountCovered
-                                assets_value = assets_value - self.asset_values[assetCnt]
-                                self.asset_values[assetCnt] = 0
-                                assetCnt = assetCnt + 1
-                                if assetCnt + 1 > len(self.asset_values):
+                                amount_covered = self.asset_type_values[asset_index] * (
+                                            1 - ((self.tax_rates[asset_index])))
+                                amount_to_cover = amount_to_cover - amount_covered
+
+                                self.asset_type_values[asset_index] = 0
+                                if self.more_detail == True:
+                                    withdrawal_tax  = withdrawal_tax + self.tax_rates[asset_index] * amount_covered
+                                asset_index = asset_index + 1
+                                if asset_index + 1 > len(self.asset_type_values):
                                     failedrun = 'y'
                                     fail = fail + 1
 
-                    interest_inflation = self.calculcate_interest_and_inflation(assets_value, ROIarray[year],
-                                                                                Inflationarray[year], year)
+                    if self.more_detail == True:
+                        self.withdrawal_tax[year].append(withdrawal_tax)
 
-                    assets_value = assets_value + interest_inflation[0]
-                    assets_value = assets_value - interest_inflation[1]
-                    assets_value = assets_value + interest_inflation[2]
+                    interest_inflation = self.calculate_roi_inflation_and_new_assets(ROIarray[year],
+                                                                                     Inflationarray[year], year)
 
-                    self.roi_list[year].append(ROIarray[year])
-                    self.roi_value_list[year].append(interest_inflation[0])
+                    for i in range(0, len(self.asset_type_values)):
+                        self.start_asset_type_list[year][i].append(self.asset_type_values[i])
+                    if self.more_detail == True:
+                        # assets_value = assets_value + interest_inflation[0]
+                        # assets_value = assets_value - interest_inflation[1]
+                        # ssets_value = assets_value + interest_inflation[2]
 
-                    self.inflation_list[year].append(interest_inflation[1])
-                    self.end_asset_list[year].append(assets_value)
+                        self.roi_list[year].append(ROIarray[year])
+                        self.roi_value_list[year].append(interest_inflation[0])
+
+                        self.inflation_list[year].append(interest_inflation[1])
+                        self.new_assets_list[year].append(interest_inflation[2])
+                        self.investment_tax_list[year].append(interest_inflation[3])
+                    # self.end_asset_list[year].append(assets_value)
                 else:
-                    self.start_asset_list[year].append(0)
-                    self.roi_value_list[year].append(0)
-                    self.end_asset_list[year].append(0)
-                    self.inflation_list[year].append(0)
-                    self.roi_list[year].append(0)
-                    for i in range(0, len(self.asset_values)):
-                        self.start_asset_type_list[year][i].append(0)
+                    self.start_asset_list[year].append(0.0)
+                    for i in range(0, len(self.asset_type_values)):
+                        self.start_asset_type_list[year][i].append(0.0)
+
+                    if self.more_detail == True:
+                        # self.roi_value_list[year].append(0.0)
+                        self.inflation_list[year].append(0.0)
+                        self.new_assets_list[year].append(0.0)
+                        self.investment_tax_list[year].append(0.0)
+                        self.withdrawal_tax[year].append(0.0)
+                        self.roi_list[year].append(0.0)
 
                 year = year + 1
 
             if failedrun == "n":
-                self.assets_value_end.append(assets_value)
                 success = success + 1
-            else:
-                self.assets_value_end.append(0)
 
             run = run + 1
         if test_time == 1:
@@ -408,39 +422,60 @@ class MonteCarloRunSim():
 
     def get_ROI_random(self, years, roi, sd):
 
-        return np.random.normal(size=years, loc=roi, scale=sd)
+        return np.random.normal(size=years, loc=roi/100, scale=sd/100)
 
-    def get_inflation_random(self, years, inflation, inflation_sd):
+    def get_inflation_random(self, years, inflation_rate, inflation_rate_sd):
 
-        return np.random.normal(size=years, loc=inflation, scale=inflation_sd)
+        return np.random.normal(size=years, loc=inflation_rate / 100, scale=inflation_rate_sd / 100)
 
-    def calculcate_interest_and_inflation(self, assets_value, roi, inflation_in, year):
+    def calculate_roi_inflation_and_new_assets(self, roi, inflation_in, year):
 
         ix = 0
-        interest = 0
-        inflation = 0
-        new_assets = 0
-        for l in self.asset_values:
-            asset_interest = (l * ((roi) / 100))
-            if asset_interest > 0:
-                asset_interest = asset_interest - ((asset_interest) * ((self.investment_tax_rates[ix]) / 100))
+        interest = 0.0
+        inflation = 0.0
+        new_assets = 0.0
+        investment_tax = 0.0
+
+        for l in self.asset_type_values:
+            if self.more_detail == False:
+                interest_inflation = []
+                # new value for asset_type =   old_value + roi - tax_on_roi - inflation_depreciation
+                # + new assets of that typer
+                self.asset_type_values[ix] = self.asset_type_values[ix] + (l * (float(roi))) - (
+                        (l * (float(roi)  )) * (float(self.investment_tax_rates[ix]))) - float(
+                    self.asset_type_values[ix] * (float(inflation_in))) + self.new_asset_type_list[year][ix]
+
+
             else:
-                asset_interest = asset_interest - ((asset_interest) * ((self.investment_tax_rates[ix]) / 100))
+                asset_interest = (l * (float(roi) ))
+                if asset_interest > 0:
+                    asset_interest = asset_interest - (float(asset_interest) * (float(self.investment_tax_rates[ix])))
+                else:
+                    asset_interest = asset_interest - (float(asset_interest) * (float(self.investment_tax_rates[ix])))
 
-            interest = interest + asset_interest
-            asset_inflation = (self.asset_values[ix] * ((inflation_in) / 100))
-            inflation = inflation + asset_inflation
-            new_assets = new_assets + self.new_asset_type_list[year][ix]
+                investment_tax = investment_tax + (float(asset_interest) * (float(self.investment_tax_rates[ix])))
 
-            self.asset_values[ix] = self.asset_values[ix] + asset_interest
-            self.asset_values[ix] = self.asset_values[ix] - asset_inflation + self.new_asset_type_list[year][ix]
+                # print ('ITR',self.investment_tax_rates[ix],',',investment_tax,',',asset_interest)
 
+                interest = interest + asset_interest
+                asset_inflation = float(self.asset_type_values[ix] * (float(inflation_in) ))
+                inflation = inflation + asset_inflation
+                new_assets = new_assets + self.new_asset_type_list[year][ix]
+
+                self.asset_type_values[ix] = self.asset_type_values[ix] + asset_interest
+                self.asset_type_values[ix] = self.asset_type_values[ix] - asset_inflation + \
+                                             self.new_asset_type_list[year][ix]
+
+            ix = ix + 1
+
+        if self.more_detail == True:
             interest_inflation = []
             interest_inflation.clear
             interest_inflation.append(interest)
             interest_inflation.append(inflation)
             interest_inflation.append(new_assets)
-            ix = ix + 1
+            interest_inflation.append(investment_tax)
+
         return interest_inflation
 
     def create_output_lists(self, runs, success, currency_symbol):
@@ -454,7 +489,7 @@ class MonteCarloRunSim():
         runData.append(
             str(decimal.Decimal(success * 100 / runs).quantize(decimal.Decimal('.01'))).replace('.00', '') + "%")
         runData.append('Initial Assets:')
-        runData.append(str(format(int(sum(self.asset_values_orig)), ",d")))
+        runData.append(str(format(sum(self.asset_type_values_orig), ",d")))
 
         runData.append('Average Spending:')
 
@@ -469,11 +504,9 @@ class MonteCarloRunSim():
         runData.append('Average Withdrawals:')
         runData.append(str(format(int(statistics.mean(self.withdrawals)), ",d")))
 
-        runData.append('Median End Value:')
+        # runData.append('Median End Value:')
 
-        print ('EV',self.assets_value_end)
-
-        runData.append(str(format(int(statistics.mean(self.assets_value_end)), ",d")))
+        # runData.append(str(format(int(statistics.mean(self.assets_value_end)), ",d")))
 
         detailedRunData = []
         detailedRunData.clear()
@@ -489,7 +522,6 @@ class MonteCarloRunSim():
 
         i = 0
         while i <= (self.end_year - self.start_year):
-
 
             chart_years.append(str(i + self.start_year))
 
@@ -523,17 +555,17 @@ class MonteCarloRunSim():
             if i == 0:
                 headers.append('Withdrawals')
 
-
-            detailedRunData.append(
-                currency_symbol + str(format(int(statistics.median(self.start_asset_list[i])), ",d")))
-
-            if i == 0:
-                headers.append('Start Assets')
+            asset_type_mean = []
+            total_end_assets = 0
+            for i2 in range(0, len(self.asset_type_values)):
+                asset_type_mean.append(float(statistics.median(self.start_asset_type_list[i][i2])))
+                total_end_assets = total_end_assets + asset_type_mean[i2]
 
             at = 0
             for a in self.start_asset_type_list[i]:
+
                 detailedRunData.append(
-                    currency_symbol + str(format(int(statistics.median(self.start_asset_type_list[i][at])), ",d")))
+                    currency_symbol + str(format(int(asset_type_mean[at]), ",d")))
                 chart_assets[at].append(statistics.median(self.start_asset_type_list[i][at]))
 
                 if i == 0:
@@ -543,28 +575,59 @@ class MonteCarloRunSim():
                 at = at + 1
 
             detailedRunData.append(
-            str(decimal.Decimal(statistics.median(self.roi_list[i])).quantize(decimal.Decimal('.01'))) + "%")
+                currency_symbol + str(format(int(total_end_assets), ",d")))
 
             if i == 0:
-                headers.append('ROI')
+                headers.append('End Assets')
 
-            detailedRunData.append(currency_symbol + str(format(int(statistics.median(self.roi_value_list[i])), ",d")))
+            if self.more_detail == True:
 
-            if i == 0:
-                headers.append('Roi Value')
+                if i == 0:
+                    headers.append('ROI')
 
-            detailedRunData.append(currency_symbol + str(format(int(statistics.median(self.inflation_list[i])), ",d")))
+                detailedRunData.append(str(decimal.Decimal(statistics.median(self.roi_list[i])*100).quantize(decimal.Decimal('.01'))).replace('.00', '') + "%")
+                    #currency_symbol + str(format(int(statistics.median(self.roi_list[i])*100), ",d")))
 
-            if i == 0:
-                headers.append('Inflation')
+                    #str(decimal.Decimal(statistics.median(self.roi_list[i]).quantize(decimal.Decimal('.01'))).replace('.00', '') + "%")
 
-            detailedRunData.append(currency_symbol + str(format(int(statistics.median(self.end_asset_list[i])), ",d")))
+                if i == 0:
+                    headers.append('Roi Value')
 
-            if i == 0:
-                headers.append('End Value')
+                print (self.roi_list)
+
+                detailedRunData.append(
+                    currency_symbol + str(format(int(statistics.median(self.roi_value_list[i])), ",d")))
+
+                if i == 0:
+                    headers.append('Inflation')
+
+                detailedRunData.append(
+                    currency_symbol + str(format(int(statistics.median(self.inflation_list[i])), ",d")))
+
+                if i == 0:
+                    headers.append('New Assets')
+
+                detailedRunData.append(
+                    currency_symbol + str(format(int(statistics.median(self.new_assets_list[i])), ",d")))
+
+                if i == 0:
+                    headers.append('Investment \n Taxes')
+
+                detailedRunData.append(
+                    currency_symbol + str(format(int(statistics.median(self.investment_tax_list[i])), ",d")))
+
+                if i == 0:
+                    headers.append('Withdrawal \n Taxes')
+
+                if len(self.withdrawal_tax) > 0:
+                    detailedRunData.append(
+                        currency_symbol + str(format(int(statistics.median(self.withdrawal_tax[i])), ",d")))
+                else:
+                    detailedRunData.append(
+                        currency_symbol + str(format(int(0), ",d")))
+
 
             i = i + 1
-
 
         self.output.clear()
         self.output.append(headers)
@@ -574,8 +637,5 @@ class MonteCarloRunSim():
         self.output.append(chart_assets)
         self.output.append(chart_asset_names)
 
-
         current_time = time.time()
         print("End Run", current_time - self.start_time, ',', current_time - self.last_time)
-
-

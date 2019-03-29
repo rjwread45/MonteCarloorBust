@@ -2163,6 +2163,11 @@ class IncomePopup(Popup):
 
         if len(listrow) > 0:
             SQLstuff.delete_row('', 'income', listrow[0])
+
+        if self.t6.active == False:
+            self.t7.text = -1
+
+
         SQLstuff.insert_income('', 'income', self.t1.text, self.t2.text, self.t3.text,
                                self.t4.text, self.t5.text, self.t6.active, self.t7.text.replace('%', ''))
         root = asr
