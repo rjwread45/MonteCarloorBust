@@ -24,6 +24,7 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.spinner import Spinner
 from kivy.uix.checkbox import CheckBox
 from kivy.config import Config
+from kivy.uix.image import Image
 from kivy.graphics import Mesh, InstructionGroup, Color
 from kivy.uix.colorpicker import ColorPicker
 from kivy.uix.filechooser import FileChooserListView
@@ -129,6 +130,7 @@ class Advanced():
     currency_symbol = ''
     color_chosen = ''
     more_details = False
+    show_chart = False
 
 
 class SQLstuff():
@@ -1618,6 +1620,7 @@ class RunPopup(Popup):
 
     layout = GridLayout(cols=1, row_force_default=False, row_default_height=20)
 
+
     content = layout
 
     labPercent = Label(text='Run', size_hint=(1, 1))
@@ -1628,6 +1631,7 @@ class RunPopup(Popup):
     # for i in range(len(listall)):
 
     headers = GridLayout(cols=10, row_force_default=False, row_default_height=30, size_hint=(.2, .04))
+    chartgrid = GridLayout(cols=1, row_force_default=False, row_default_height=100, size_hint=(6, .8))
     layouti = GridLayout(cols=10, spacing=2, size_hint_y=None)
     # print ('len=',len(listall))
     layouti.bind(minimum_height=layouti.setter('height'))
@@ -1657,7 +1661,7 @@ class RunPopup(Popup):
     buttons = GridLayout(cols=5, row_force_default=False, row_default_height=20, size_hint=(.1, .04))
 
     btnRun = Button(text='Run', size_hint=(.1, .01))
-    btnChart = Button(text='Chart', size_hint=(.1, .01))
+    button_chart = Button(text='Chart', size_hint=(.1, .01))
 
     markup_startcol = '[color=fff099]'
     markup_endcol = '[/color]'
@@ -1670,11 +1674,11 @@ class RunPopup(Popup):
     markup_endcol = '[/color]'
     markup_startfont = '[size=15]'
     markup_endfont = '[/size]'
-    btnChart.markup = True
-    btnChart.text = markup_startcol + markup_startfont + "Chart" + markup_endfont + markup_endcol
+    button_chart.markup = True
+    button_chart.text = markup_startcol + markup_startfont + "Show Chart" + markup_endfont + markup_endcol
 
     buttons.add_widget(btnRun)
-    buttons.add_widget(btnChart)
+    buttons.add_widget(button_chart)
     buttons.add_widget(Label(text=''))
     btnA = Button(text='Assumptions', size_hint=(.1, .015))
     btnAdv = Button(text='Advanced', size_hint=(.1, .015))
@@ -1692,13 +1696,15 @@ class RunPopup(Popup):
     def __init__(self, *args, **kwargs):
         super(RunPopup, self).__init__(*args, **kwargs)
         self.btnRun.bind(on_release=self.cancel)
-        self.btnChart.bind(on_release=self.chart)
+        self.button_chart.bind(on_release=self.chart)
 
     def open(self, correct=True):
         super(RunPopup, self).open(correct)
 
         # print ("abt to run")
         mc = MonteCarloRun.MonteCarloRunSim()
+
+
         self.runOut = mc.run_simulation(Advanced.dbname, Advanced.currency_symbol,Advanced.more_details)
         #self.runOut = mc.run_simulation(Advanced.dbname, Advanced.currency_symbol)
         print("runout", self.runOut)
@@ -1772,6 +1778,19 @@ class RunPopup(Popup):
             # btn.font_size =  '20pt'
             self.layouti.add_widget(btni)
 
+        self.layout.clear_widgets()
+
+        self.layout.add_widget(self.gl1)
+        if Advanced.show_chart == True:
+            self.get_chart()
+            self.myimage = Image(source='mytable.png', size_hint=(6,3))
+            self.chartgrid.clear_widgets()
+            self.chartgrid.add_widget(self.myimage)
+            self.layout.add_widget(self.chartgrid)
+        self.layout.add_widget(self.headers)
+        self.layout.add_widget(self.s2)
+        self.layout.add_widget(self.buttons)
+
     def on_slide_value_change_s2(self, instance, value):
         self.t2.text = Advanced.currency_symbol + str(format((round(value / 1000) * 1000), ",d"))
 
@@ -1803,12 +1822,40 @@ class RunPopup(Popup):
         self.dismiss()
 
     def chart(self, instance):
+        if Advanced.show_chart == True:
+            Advanced.show_chart = False
+            self.button_chart.text = 'Show Chart'
+            self.layout.clear_widgets()
+            self.layout.add_widget(self.gl1)
+            self.layout.add_widget(self.headers)
+            self.layout.add_widget(self.s2)
+            self.layout.add_widget(self.buttons)
+
+        else:
+            Advanced.show_chart = True
+            self.button_chart.text = 'Hide Chart'
+            self.layout.clear_widgets()
+            self.layout.add_widget(self.gl1)
+            if Advanced.show_chart == True:
+                self.get_chart()
+                self.myimage = Image(source='mytable.png', size_hint=(6, 3))
+                self.chartgrid.clear_widgets()
+                self.chartgrid.add_widget(self.myimage)
+                self.layout.add_widget(self.chartgrid)
+            self.layout.add_widget(self.headers)
+            self.layout.add_widget(self.s2)
+            self.layout.add_widget(self.buttons)
+
+
+
+
+    def get_chart(self):
 
         import pandas as pd
 
         import matplotlib.pyplot as plt
 
-        df = df = pd.DataFrame()
+
 
         print('len', len(self.runOut[5]))
         if len(self.runOut[5]) == 3:
@@ -1827,11 +1874,18 @@ class RunPopup(Popup):
                     df = pd.DataFrame(index=self.runOut[3],
                                       data={self.runOut[5][0]: self.runOut[4][0]})
 
-        ax = df.plot(kind="bar", stacked=True, figsize=(16, 6), title='Asset Values')
+
+
+        ax = df.plot(kind="bar", stacked=True, figsize=(40, 6), title='Asset Values')
 
         # df.sum(axis=1).plot(ax=ax, color="k")
 
-        plt.show()
+        plt.savefig('mytable.png',facecolor='lightgray', transparent=True)
+
+        #mychart = Image(source='mytable.png')
+
+
+
 
     def chart_old(self, instance):
         N = len(self.runOut[4][0])
